@@ -1,0 +1,49 @@
+# -*- coding: utf-8 -*-
+import wmi
+from scapy.all import *
+
+wmi_obj = wmi.WMI()
+wmi_sql = "select IPAddress,DefaultIPGateway from Win32_NetworkAdapterConfiguration where IPEnabled=TRUE"
+wmi_out = wmi_obj.query(wmi_sql)
+
+# ------参数列表------
+count=50      #广播包数量
+TheMaclist_packet = []      #用于可疑存储Mac地址
+# ------------------
+
+for i in range(count):
+    TheIP = wmi_out[0].DefaultIPGateway[0]
+    # 构造ARP包 并srp发送和接收
+    try:
+        (ans, unans) = srp(Ether(dst="FF:FF:FF:FF:FF:FF") / ARP(pdst=TheIP), timeout=1, verbose=0)
+    except Exception as e:
+        print(str(e))
+    else:
+        for snd, rcv in ans:
+            flag_Mac = 0
+            TheMac = rcv.sprintf("%Ether.src%")
+            TheIP = rcv.sprintf("%ARP.psrc%")
+            print("网关Mac:    "+TheMac+"--->"+"网关IP:     "+TheIP)
+            for i in TheMaclist_packet:
+                if i == TheMac:
+                    flag_Mac+=1
+            if flag_Mac == 0:
+                TheMaclist_packet.append(TheMac)
+
+if len(TheMaclist_packet) == 1:
+    print("无ARP主机欺骗，歌舞升平！！")
+else:
+    print("您的Mac遭劫持！！")
+    for i in TheMaclist_packet:
+        print("可疑的Mac地址:    ",i,end='\n')
+
+
+
+"""Mac地址全放在 TheMaclist_packet这个列表里面了
+    使用 TheMaclist_packet[0] 来提取
+
+如果发生了主机欺骗显示如下：
+    可疑的Mac地址：58:69:6c:5e:c2:c6
+    可疑的Mac地址：60-75-56-fd-75-7b
+    可疑的Mac地址：01-60-5y-00-00-16"""
+
